@@ -85,14 +85,20 @@ def multiplication_quiz():
             submit = st.form_submit_button("Soumettre")
 
         # Auto focus script injection
-        components.html("""
+        components.html(\"\"\"
         <script>
-        setTimeout(function() {
-            const input = window.parent.document.querySelector('input[data-testid="stTextInput"]');
-            if (input) input.focus();
-        }, 50);
+          window.addEventListener('load', function() {
+            setTimeout(function() {
+              const iframe = window.parent.document.querySelector('iframe');
+              if (iframe) {
+                const input = iframe.contentDocument.querySelector('input[data-testid=\"stTextInput\"]');
+                if (input) input.focus();
+              }
+            }, 200);
+          });
         </script>
-        """, height=0)
+        \"\"\", height=0)
+
 
         if submit:
             try:
