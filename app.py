@@ -16,8 +16,6 @@ def login():
     username = st.text_input("Nom d'utilisateur")
     password = st.text_input("Mot de passe", type="password")
     
-    st.write(result)
-
     if st.button("Se connecter"):
         result = supabase.table("users").select("*").eq("username", username).execute()
         
