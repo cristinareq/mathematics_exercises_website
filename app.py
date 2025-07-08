@@ -5,11 +5,13 @@ import pandas as pd
 from datetime import datetime
 from supabase import create_client
 import streamlit.components.v1 as components
+import os
 
 # Supabase setup
 SUPABASE_URL = st.secrets["SUPABASE_URL"]
 SUPABASE_KEY = st.secrets["SUPABASE_KEY"]
 supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
+os.environ['SUPABASE_CLIENT_LOG_LEVEL'] = 'DEBUG'
 
 # ---------------- AUTH ----------------
 def login():
@@ -63,7 +65,7 @@ def multiplication_quiz():
 
     if st.session_state.quiz_running:
         elapsed = int(time.time() - st.session_state.start_time)
-        remaining = max(0, 15 - elapsed)
+        remaining = max(0, 300 - elapsed)
 
         st.info(f"⏳ Temps restant : {remaining} sec")
         st.success(f"Score en direct : {st.session_state.correct}/{st.session_state.total}")
@@ -84,7 +86,6 @@ def multiplication_quiz():
             )
             submit = st.form_submit_button("Soumettre")
 
-        # Auto focus script injection
         components.html("""
         <script>
           window.addEventListener('load', function() {
@@ -98,8 +99,6 @@ def multiplication_quiz():
           });
         </script>
         """, height=0)
-
-
 
         if submit:
             try:
@@ -124,15 +123,17 @@ def multiplication_quiz():
 
         if not st.session_state.get("score_saved", False):
             now = datetime.now()
-            supabase.table("scores").insert({
+            data = {
                 "username": st.session_state.user,
                 "timestamp": now.isoformat(),
                 "readable_date": now.strftime("%d/%m/%Y %H:%M"),
                 "correct": st.session_state.correct,
                 "total": st.session_state.total,
-                "duration": 15,
+                "duration": 300,
                 "tables": ",".join(str(t) for t in st.session_state.selected_tables)
-            }).execute()
+            }
+            st.write("✅ Données envoyées à Supabase :", data)
+            supabase.table("scores").insert(data).execute()
             st.session_state.score_saved = True
 
         show_leaderboard()
