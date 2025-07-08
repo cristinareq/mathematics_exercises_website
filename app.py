@@ -15,8 +15,14 @@ def login():
     st.title("🔐 Connexion")
     username = st.text_input("Nom d'utilisateur")
     password = st.text_input("Mot de passe", type="password")
+    
+    st.write(result)
+
     if st.button("Se connecter"):
         result = supabase.table("users").select("*").eq("username", username).execute()
+        
+        st.write(result)
+        
         if result.data and result.data[0]["password"] == password:
             st.session_state.user = username
             st.session_state.is_teacher = result.data[0]["is_teacher"]
