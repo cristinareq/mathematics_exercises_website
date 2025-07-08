@@ -58,7 +58,7 @@ def multiplication_quiz():
 
     if st.session_state.quiz_running:
         elapsed = int(time.time() - st.session_state.start_time)
-        remaining = max(0, 300 - elapsed)
+        remaining = max(0, 180 - elapsed)
 
         st.info(f"⏳ Temps restant : {remaining} sec")
         st.success(f"Score en direct : {st.session_state.correct}/{st.session_state.total}")
@@ -103,7 +103,7 @@ def multiplication_quiz():
                 "readable_date": now.strftime("%d/%m/%Y %H:%M"),
                 "correct": st.session_state.correct,
                 "total": st.session_state.total,
-                "duration": 300,
+                "duration": 180,
                 "tables": ",".join(str(t) for t in st.session_state.selected_tables)
             }).execute()
             st.session_state.score_saved = True
