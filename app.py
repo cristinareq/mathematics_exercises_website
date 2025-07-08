@@ -4,6 +4,7 @@ import time
 import pandas as pd
 from datetime import datetime
 from supabase import create_client
+import streamlit.components.v1 as components
 
 # Supabase setup
 SUPABASE_URL = st.secrets["SUPABASE_URL"]
@@ -42,8 +43,12 @@ def multiplication_quiz():
     if not st.session_state.quiz_running and not st.session_state.quiz_finished:
         if selected_tables:
             st.markdown("### 🧾 Tables sélectionnées :")
+            rows = []
             for t in selected_tables:
-                st.markdown(f"**Table de {t}** : " + ", ".join([f"{t}×{i}={t*i}" for i in range(1, 11)]))
+                row = [f"{t}×{i}={t*i}" for i in range(1, 11)]
+                rows.append(row)
+            df = pd.DataFrame(rows, index=[f"Table de {t}" for t in selected_tables]).transpose()
+            st.dataframe(df)
 
     if st.button("🚀 Commencer l'entraînement"):
         st.session_state.start_time = time.time()
@@ -58,7 +63,7 @@ def multiplication_quiz():
 
     if st.session_state.quiz_running:
         elapsed = int(time.time() - st.session_state.start_time)
-        remaining = max(0, 180 - elapsed)
+        remaining = max(0, 300 - elapsed)
 
         st.info(f"⏳ Temps restant : {remaining} sec")
         st.success(f"Score en direct : {st.session_state.correct}/{st.session_state.total}")
@@ -71,8 +76,23 @@ def multiplication_quiz():
 
         a, b = st.session_state.current_q
         with st.form(key="answer_form"):
-            answer = st.text_input(f"Combien fait {a} × {b} ?", key=f"q-{a}-{b}-{st.session_state.total}")
+            answer = st.text_input(
+                f"Combien fait {a} × {b} ?",
+                value="",
+                key=f"q-{a}-{b}-{st.session_state.total}",
+                placeholder="Écris ta réponse ici et appuie sur Entrée"
+            )
             submit = st.form_submit_button("Soumettre")
+
+        # Auto focus script injection
+        components.html("""
+        <script>
+        setTimeout(function() {
+            const input = window.parent.document.querySelector('input[data-testid="stTextInput"]');
+            if (input) input.focus();
+        }, 50);
+        </script>
+        """, height=0)
 
         if submit:
             try:
@@ -103,7 +123,7 @@ def multiplication_quiz():
                 "readable_date": now.strftime("%d/%m/%Y %H:%M"),
                 "correct": st.session_state.correct,
                 "total": st.session_state.total,
-                "duration": 180,
+                "duration": 300,
                 "tables": ",".join(str(t) for t in st.session_state.selected_tables)
             }).execute()
             st.session_state.score_saved = True
