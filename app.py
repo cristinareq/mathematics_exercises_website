@@ -34,10 +34,9 @@ def generate_question(tables):
     return (a, b)
 
 def multiplication_quiz():
-    st.title("🧮 Entraînement : Tables de multiplication")
+    st.title("🧮  Entraînement : Tables de multiplication")
     selected_tables = st.multiselect("Choisis les tables à réviser :", list(range(2, 11)), default=[2, 3])
-    show_user_scores(st.session_state.user)
-    
+
     if "quiz_running" not in st.session_state:
         st.session_state.quiz_running = False
     if "quiz_finished" not in st.session_state:
@@ -45,13 +44,17 @@ def multiplication_quiz():
 
     if not st.session_state.quiz_running and not st.session_state.quiz_finished:
         if selected_tables:
-            st.markdown("### 🧾 Tables sélectionnées :")
+            st.markdown("### Tables sélectionnées :")
             rows = []
             for t in selected_tables:
                 row = [f"{t}×{i}={t*i}" for i in range(1, 11)]
                 rows.append(row)
             df = pd.DataFrame(rows, index=[f"Table de {t}" for t in selected_tables]).transpose()
+            df.index += 1
             st.dataframe(df)
+
+        with st.expander("Voir l'historique de tes entraînements"):
+            show_user_scores(st.session_state.user)
 
     if st.button("Commencer l'entraînement"):
         st.session_state.start_time = time.time()
@@ -68,7 +71,7 @@ def multiplication_quiz():
         elapsed = int(time.time() - st.session_state.start_time)
         remaining = max(0, 15 - elapsed)
 
-        st.info(f"⏳ Temps restant : {remaining} sec")
+        st.info(f"Temps restant : {remaining} sec")
         st.success(f"Score en direct : {st.session_state.correct}/{st.session_state.total}")
 
         if remaining <= 0:
@@ -147,8 +150,8 @@ def show_user_scores(username):
         df = pd.DataFrame(result.data)
         df = df[["readable_date", "correct", "total", "tables"]]
         df.columns = ["Date", "Bonnes", "Total", "Tables"]
+        df.index += 1
         st.dataframe(df, use_container_width=True)
-
 
 def show_leaderboard():
     result = supabase.table("scores").select("*").order("correct", desc=True).limit(5).execute()
@@ -157,6 +160,7 @@ def show_leaderboard():
         df = pd.DataFrame(result.data)
         df = df[["username", "correct", "total", "readable_date"]]
         df.columns = ["Élève", "Bonnes", "Total", "Date"]
+        df.index += 1
         st.dataframe(df, use_container_width=True)
 
 # ---------------- TEACHER ----------------
@@ -169,6 +173,7 @@ def teacher_dashboard():
             st.markdown(f"### 👤 Élève : {user}")
             user_df = df[df["username"] == user][["readable_date", "correct", "total", "duration", "tables"]]
             user_df.columns = ["Date", "Bonnes", "Total", "Durée (s)", "Tables"]
+            user_df.index += 1
             st.dataframe(user_df, use_container_width=True)
 
 # ---------------- MAIN ----------------
