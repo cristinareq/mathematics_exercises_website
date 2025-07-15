@@ -36,7 +36,8 @@ def generate_question(tables):
 def multiplication_quiz():
     st.title("🧮 Entraînement : Tables de multiplication")
     selected_tables = st.multiselect("Choisis les tables à réviser :", list(range(2, 11)), default=[2, 3])
-
+    show_user_scores(st.session_state.user)
+    
     if "quiz_running" not in st.session_state:
         st.session_state.quiz_running = False
     if "quiz_finished" not in st.session_state:
@@ -52,7 +53,7 @@ def multiplication_quiz():
             df = pd.DataFrame(rows, index=[f"Table de {t}" for t in selected_tables]).transpose()
             st.dataframe(df)
 
-    if st.button("🚀 Commencer l'entraînement"):
+    if st.button("Commencer l'entraînement"):
         st.session_state.start_time = time.time()
         st.session_state.correct = 0
         st.session_state.total = 0
@@ -104,12 +105,12 @@ def multiplication_quiz():
             try:
                 answer_int = int(answer)
                 if answer_int == a * b:
-                    st.success("✅ Correct !")
+                    st.success("Correct !")
                     st.session_state.correct += 1
                 else:
-                    st.error(f"❌ Faux. La bonne réponse était {a*b}")
+                    st.error(f"Faux. La bonne réponse était {a*b}")
             except:
-                st.warning("⛔ Veuillez entrer un nombre valide.")
+                st.warning("Veuillez entrer un nombre valide.")
             st.session_state.total += 1
             st.session_state.current_q = generate_question(st.session_state.selected_tables)
             st.rerun()
@@ -132,7 +133,6 @@ def multiplication_quiz():
                 "duration": 15,
                 "tables": ",".join(str(t) for t in st.session_state.selected_tables)
             }
-            st.write("✅ Données envoyées à Supabase :", data)
             supabase.table("scores").insert(data).execute()
             st.session_state.score_saved = True
 
