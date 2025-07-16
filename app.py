@@ -15,7 +15,7 @@ os.environ['SUPABASE_CLIENT_LOG_LEVEL'] = 'DEBUG'
 
 # ---------------- AUTH ----------------
 def login():
-    st.title("🔐 Connexion")
+    st.title("Connexion")
     username = st.text_input("Nom d'utilisateur").strip().lower()
     password = st.text_input("Mot de passe", type="password")
     if st.button("Se connecter"):
@@ -33,8 +33,18 @@ def generate_question(tables):
     b = random.randint(0, 10)
     return (a, b)
 
+def show_past_errors(username):
+    result = supabase.table("errors").select("*").eq("username", username).order("timestamp", desc=True).execute()
+    if result.data:
+        st.markdown("### Tes erreurs précédentes")
+        df = pd.DataFrame(result.data)
+        df = df[["readable_date", "question", "user_answer", "correct_answer"]]
+        df.columns = ["Date", "Question", "Ta réponse", "Bonne réponse"]
+        df.index += 1
+        st.dataframe(df, use_container_width=True)
+
 def multiplication_quiz():
-    st.title("🧮  Entraînement : Tables de multiplication")
+    st.title("Entraînement : Tables de multiplication")
     selected_tables = st.multiselect("Choisis les tables à réviser :", list(range(2, 11)), default=[2, 3])
 
     if "quiz_running" not in st.session_state:
@@ -55,6 +65,9 @@ def multiplication_quiz():
 
         with st.expander("Voir l'historique de tes entraînements"):
             show_user_scores(st.session_state.user)
+
+        with st.expander("Revoir mes erreurs"):
+            show_past_errors(st.session_state.user)
 
     if st.button("Commencer l'entraînement"):
         st.session_state.start_time = time.time()
@@ -96,7 +109,7 @@ def multiplication_quiz():
             setTimeout(function() {
               const iframe = window.parent.document.querySelector('iframe');
               if (iframe) {
-                const input = iframe.contentDocument.querySelector('input[data-testid="stTextInput"]');
+                const input = iframe.contentDocument.querySelector('input[data-testid=\"stTextInput\"]');
                 if (input) input.focus();
               }
             }, 200);
@@ -112,6 +125,17 @@ def multiplication_quiz():
                     st.session_state.correct += 1
                 else:
                     st.error(f"Faux. La bonne réponse était {a*b}")
+                    now = datetime.now()
+                    error_data = {
+                        "username": st.session_state.user,
+                        "timestamp": now.isoformat(),
+                        "readable_date": now.strftime("%d/%m/%Y %H:%M"),
+                        "question": f"{a} x {b}",
+                        "correct_answer": a * b,
+                        "user_answer": answer_int,
+                        "table_value": a
+                    }
+                    supabase.table("errors").insert(error_data).execute()
             except:
                 st.warning("Veuillez entrer un nombre valide.")
             st.session_state.total += 1
@@ -122,7 +146,7 @@ def multiplication_quiz():
         st.rerun()
 
     elif st.session_state.quiz_finished:
-        st.title("🧾 Résultats")
+        st.title("Résultats")
         st.success(f"Score final : {st.session_state.correct}/{st.session_state.total}")
 
         if not st.session_state.get("score_saved", False):
@@ -146,7 +170,7 @@ def multiplication_quiz():
 def show_user_scores(username):
     result = supabase.table("scores").select("*").eq("username", username).order("timestamp", desc=True).execute()
     if result.data:
-        st.markdown("### 📈 Historique de l'élève")
+        st.markdown("### Historique")
         df = pd.DataFrame(result.data)
         df = df[["readable_date", "correct", "total", "tables"]]
         df.columns = ["Date", "Bonnes", "Total", "Tables"]
@@ -165,14 +189,27 @@ def show_leaderboard():
 
 # ---------------- TEACHER ----------------
 def teacher_dashboard():
-    st.title("📊 Tableau de bord - Enseignant")
+    st.title("Tableau de bord - Enseignant")
     result = supabase.table("scores").select("*").order("timestamp", desc=True).execute()
     if result.data:
         df = pd.DataFrame(result.data)
         for user in df["username"].unique():
-            st.markdown(f"### 👤 Élève : {user}")
+            st.markdown(f"### Élève : {user}")
             user_df = df[df["username"] == user][["readable_date", "correct", "total", "duration", "tables"]]
             user_df.columns = ["Date", "Bonnes", "Total", "Durée (s)", "Tables"]
+            user_df.index += 1
+            st.dataframe(user_df, use_container_width=True)
+
+    show_all_errors_by_user()
+
+def show_all_errors_by_user():
+    result = supabase.table("errors").select("*").order("timestamp", desc=True).execute()
+    if result.data:
+        df = pd.DataFrame(result.data)
+        for user in df["username"].unique():
+            st.markdown(f"### Erreurs de : {user}")
+            user_df = df[df["username"] == user][["readable_date", "question", "user_answer", "correct_answer"]]
+            user_df.columns = ["Date", "Question", "Réponse élève", "Bonne réponse"]
             user_df.index += 1
             st.dataframe(user_df, use_container_width=True)
 
@@ -182,7 +219,7 @@ def main():
         login()
     else:
         st.sidebar.success(f"Connecté en tant que {st.session_state.user}")
-        if st.sidebar.button("🔒 Se déconnecter"):
+        if st.sidebar.button("Se déconnecter"):
             for key in list(st.session_state.keys()):
                 del st.session_state[key]
             st.rerun()
