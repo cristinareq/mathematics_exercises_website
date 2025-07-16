@@ -39,7 +39,8 @@ def show_user_scores(username):
         df = pd.DataFrame(result.data)
         df = df[["readable_date", "correct", "total", "tables"]]
         df.columns = ["Date", "Bonnes", "Total", "Tables"]
-        df.index += 1
+        if not df.empty:
+            df.index += 1
         st.dataframe(df, use_container_width=True)
 
 def show_user_errors(username):
@@ -48,7 +49,8 @@ def show_user_errors(username):
         df = pd.DataFrame(result.data)
         df = df[["readable_date", "question", "user_answer", "correct_answer"]]
         df.columns = ["Date", "Question", "Réponse élève", "Bonne réponse"]
-        df.index += 1
+        if not df.empty:
+            df.index += 1
         st.dataframe(df, use_container_width=True)
 
 def get_user_stats(username):
@@ -86,7 +88,7 @@ def run_quiz(questions):
 
         a, b = st.session_state.questions[st.session_state.current_index]
 
-        with st.form(key=f"answer_form_{st.session_state.current_index}"):
+        with st.form(key=f"answer_form_{st.session_state.current_index}_{int(time.time())}"):
             answer = st.text_input(f"Combien fait {a} × {b} ?", key=f"q-{a}-{b}", placeholder="Écris ta réponse ici")
             submit = st.form_submit_button("Soumettre")
 
@@ -161,7 +163,8 @@ def student_page():
     if selected_tables:
         rows = [[f"{t}×{i}={t*i}" for i in range(1, 11)] for t in selected_tables]
         df = pd.DataFrame(rows, index=[f"Table de {t}" for t in selected_tables]).transpose()
-        df.index += 1
+        if not df.empty:
+            df.index += 1
         st.dataframe(df)
 
     if st.button("Commencer l'entraînement"):
@@ -196,9 +199,20 @@ def teacher_dashboard():
                 st.session_state.selected_student = user
                 st.rerun()
 
-    if "selected_student" in st.session_state:
+            
+    if "selected_student" not in st.session_state:
+        # Affichage de la liste des élèves
+        for user in users:
+            best, avg, count = get_user_stats(user)
+            if st.button(f"👤 {user} | 🎯 Max: {best} | 📊 Moy: {avg} | 🧮 Exos: {count}"):
+                st.session_state.selected_student = user
+                st.rerun()
+    else:
+        # Page individuelle
         st.title(f"📈 Statistiques de {st.session_state.selected_student}")
+        st.subheader("📊 Scores des entraînements")
         show_user_scores(st.session_state.selected_student)
+        st.subheader("❌ Erreurs de l'élève")
         show_user_errors(st.session_state.selected_student)
         if st.button("⬅️ Retour"):
             del st.session_state.selected_student
