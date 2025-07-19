@@ -64,39 +64,36 @@ def get_user_stats(username):
     avg_score = round(sum(s["correct"] for s in scores) / total_attempts, 2)
     return best_score, avg_score, total_attempts
 
-def render_countdown(seconds_left):
-    js_code = f"""
+def render_countdown():
+    js_code = """
     <script>
-    let duration = {seconds_left};
-    const start = Date.now();
+    let duration = 15;
     const countdown = document.getElementById('countdown');
 
-    function updateTimer() {{
-        const now = Date.now();
-        const elapsed = Math.floor((now - start) / 1000);
-        const remaining = Math.max(0, duration - elapsed);
+    function updateTimer() {
+        let minutes = Math.floor(duration / 60);
+        let seconds = duration % 60;
 
-        let minutes = Math.floor(remaining / 60);
-        let seconds = remaining % 60;
-
-        countdown.textContent = 
-            (minutes < 10 ? '0' : '') + minutes + ':' + 
+        countdown.textContent =
+            (minutes < 10 ? '0' : '') + minutes + ':' +
             (seconds < 10 ? '0' : '') + seconds;
 
-        if (remaining <= 0) {{
+        if (duration <= 0) {
             clearInterval(interval);
-        }}
-    }}
+        }
+        duration--;
+    }
 
     const interval = setInterval(updateTimer, 1000);
     updateTimer();
     </script>
 
     <div style="font-size: 32px; font-weight: bold;">
-        ⏳ Temps restant : <span id="countdown">{seconds_left}</span>
+        ⏳ Temps restant : <span id="countdown">00:15</span>
     </div>
     """
     components.html(js_code, height=60)
+
 
 
 # ---------------- QUIZ ----------------
