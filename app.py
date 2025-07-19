@@ -66,6 +66,10 @@ def get_user_stats(username):
 
 def render_countdown():
     js_code = """
+    <div style="font-size: 32px; font-weight: bold;">
+        ⏳ Temps restant : <span id="countdown">00:15</span>
+    </div>
+
     <script>
     let duration = 15;
     const countdown = document.getElementById('countdown');
@@ -87,13 +91,16 @@ def render_countdown():
     const interval = setInterval(updateTimer, 1000);
     updateTimer();
     </script>
-
-    <div style="font-size: 32px; font-weight: bold;">
-        ⏳ Temps restant : <span id="countdown">00:15</span>
-    </div>
     """
     components.html(js_code, height=60)
 
+
+def reset_quiz_state():
+    for key in [
+        "quiz_start_time", "correct", "total", "current_index",
+        "quiz_running", "last_feedback", "score_saved", "questions"
+    ]:
+        st.session_state.pop(key, None)
 
 
 # ---------------- QUIZ ----------------
@@ -224,6 +231,7 @@ def run_quiz(questions):
                         "last_feedback", "score_saved", "questions"]:
                 if key in st.session_state:
                     del st.session_state[key]
+            reset_quiz_state()
             st.session_state.page = "dashboard"
             st.rerun()
 
@@ -242,15 +250,18 @@ def student_dashboard():
         st.dataframe(df)
 
     if st.button("Commencer l'entraînement"):
+        reset_quiz_state()
         questions = [generate_question(selected_tables) for _ in range(30)]
         st.session_state.selected_tables = selected_tables
         st.session_state.page = "quiz"
         st.session_state.questions = questions
         st.rerun()
 
+
     if st.button("Réviser mes erreurs"):
         errors = supabase.table("errors").select("*").eq("username", st.session_state.user).execute().data
         if errors:
+            reset_quiz_state()
             questions = [(int(e["question"].split(" x ")[0]), int(e["question"].split(" x ")[1])) for e in errors]
             st.session_state.selected_tables = list(set(q[0] for q in questions))
             st.session_state.page = "quiz"
@@ -258,6 +269,7 @@ def student_dashboard():
             st.rerun()
         else:
             st.warning("Aucune erreur enregistrée.")
+
 
     show_user_scores(st.session_state.user)
     show_user_errors(st.session_state.user)
