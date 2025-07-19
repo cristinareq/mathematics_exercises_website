@@ -66,36 +66,47 @@ def get_user_stats(username):
 
 # ---------------- QUIZ ----------------
 def run_quiz(questions):
-    st.session_state.quiz_start_time = time.time()
-    st.session_state.correct = 0
-    st.session_state.total = 0
-    st.session_state.current_index = 0
-    st.session_state.quiz_running = True
+    if "quiz_start_time" not in st.session_state:
+        st.session_state.quiz_start_time = time.time()
+        st.session_state.correct = 0
+        st.session_state.total = 0
+        st.session_state.current_index = 0
+        st.session_state.quiz_running = True
+        st.session_state.last_feedback = ""
+        st.session_state.score_saved = False
 
-    while st.session_state.quiz_running:
-        elapsed = int(time.time() - st.session_state.quiz_start_time)
-        remaining = max(0, 15 - elapsed)
+    elapsed = int(time.time() - st.session_state.quiz_start_time)
+    remaining = max(0, 15 - elapsed)
 
-        st.info(f"Temps restant : {remaining} sec")
-        st.success(f"Score en direct : {st.session_state.correct}/{st.session_state.total}")
+    # Minuteur terminé ou toutes les questions répondues
+    if remaining <= 0 or st.session_state.current_index >= len(questions):
+        st.session_state.quiz_running = False
 
-        if remaining <= 0 or st.session_state.current_index >= len(questions):
-            st.session_state.quiz_running = False
-            break
+    if st.session_state.quiz_running:
+        st.info(f"⏳ Temps restant : {remaining} sec")
+        st.success(f"🎯 Score en direct : {st.session_state.correct}/{st.session_state.total}")
+
+        if st.session_state.last_feedback:
+            st.markdown(f"### {st.session_state.last_feedback}")
 
         a, b = questions[st.session_state.current_index]
 
-        with st.form(key=f"form_{st.session_state.current_index}_{int(time.time())}"):
-            answer = st.text_input(f"Combien fait {a} × {b} ?", key=f"q-{a}-{b}", placeholder="Écris ta réponse ici")
+        with st.form(key=f"form_{st.session_state.current_index}_{st.session_state.total}"):
+            answer = st.text_input(
+                f"Combien fait {a} × {b} ?",
+                key=f"q-{a}-{b}",
+                placeholder="Écris ta réponse ici"
+            )
             submitted = st.form_submit_button("Soumettre")
 
+        # Focus automatique sur l’input
         components.html("""
         <script>
           window.addEventListener('load', function() {
             setTimeout(function() {
               const iframe = window.parent.document.querySelector('iframe');
               if (iframe) {
-                const input = iframe.contentDocument.querySelector('input[data-testid=\"stTextInput\"]');
+                const input = iframe.contentDocument.querySelector('input[data-testid="stTextInput"]');
                 if (input) input.focus();
               }
             }, 200);
@@ -105,49 +116,59 @@ def run_quiz(questions):
 
         if submitted:
             try:
-                answer_int = int(answer)
-                if answer_int == a * b:
-                    st.success("Correct !")
+                user_answer = int(answer)
+                correct_answer = a * b
+                if user_answer == correct_answer:
                     st.session_state.correct += 1
+                    st.session_state.last_feedback = "✅ Correct !"
                 else:
-                    st.error(f"Faux. La bonne réponse était {a * b}")
+                    st.session_state.last_feedback = f"❌ Faux. La bonne réponse était {correct_answer}"
+
+                    # Enregistrer l'erreur
                     now = datetime.now()
                     supabase.table("errors").insert({
                         "username": st.session_state.user,
                         "timestamp": now.isoformat(),
                         "readable_date": now.strftime("%d/%m/%Y %H:%M"),
                         "question": f"{a} x {b}",
-                        "correct_answer": a * b,
-                        "user_answer": answer_int,
+                        "correct_answer": correct_answer,
+                        "user_answer": user_answer,
                         "table_value": a
                     }).execute()
             except:
-                st.warning("Veuillez entrer un nombre valide.")
+                st.session_state.last_feedback = "⛔ Veuillez entrer un nombre valide."
 
             st.session_state.total += 1
             st.session_state.current_index += 1
             st.rerun()
 
-    st.title("Résultats")
-    st.success(f"Score final : {st.session_state.correct}/{st.session_state.total}")
+    else:
+        # Fin de quiz
+        st.title("🧾 Résultats")
+        st.success(f"Score final : {st.session_state.correct}/{st.session_state.total}")
 
-    if "score_saved" not in st.session_state:
-        now = datetime.now()
-        data = {
-            "username": st.session_state.user,
-            "timestamp": now.isoformat(),
-            "readable_date": now.strftime("%d/%m/%Y %H:%M"),
-            "correct": st.session_state.correct,
-            "total": st.session_state.total,
-            "duration": 15,
-            "tables": ",".join(str(t) for t in st.session_state.selected_tables)
-        }
-        supabase.table("scores").insert(data).execute()
-        st.session_state.score_saved = True
+        if not st.session_state.score_saved:
+            now = datetime.now()
+            data = {
+                "username": st.session_state.user,
+                "timestamp": now.isoformat(),
+                "readable_date": now.strftime("%d/%m/%Y %H:%M"),
+                "correct": st.session_state.correct,
+                "total": st.session_state.total,
+                "duration": 15,
+                "tables": ",".join(str(t) for t in st.session_state.selected_tables)
+            }
+            supabase.table("scores").insert(data).execute()
+            st.session_state.score_saved = True
 
-    if st.button("⬅️ Retour"):
-        st.session_state.page = "dashboard"
-        st.rerun()
+        if st.button("⬅️ Retour"):
+            for key in ["quiz_start_time", "correct", "total", "current_index", "quiz_running",
+                        "last_feedback", "score_saved", "questions"]:
+                if key in st.session_state:
+                    del st.session_state[key]
+            st.session_state.page = "dashboard"
+            st.rerun()
+
 
 # ---------------- PAGES ----------------
 def student_dashboard():
