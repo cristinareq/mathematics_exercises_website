@@ -6,7 +6,6 @@ from datetime import datetime
 from supabase import create_client
 import streamlit.components.v1 as components
 import os
-from streamlit_extras.st_autorefresh import st_autorefresh
 
 # Supabase setup
 SUPABASE_URL = st.secrets["SUPABASE_URL"]
@@ -65,6 +64,37 @@ def get_user_stats(username):
     avg_score = round(sum(s["correct"] for s in scores) / total_attempts, 2)
     return best_score, avg_score, total_attempts
 
+def render_countdown(seconds_left):
+    js_code = f"""
+    <script>
+    function startTimer(duration, display) {{
+        var timer = duration, minutes, seconds;
+        setInterval(function () {{
+            minutes = parseInt(timer / 60, 10)
+            seconds = parseInt(timer % 60, 10)
+
+            minutes = minutes < 10 ? "0" + minutes : minutes
+            seconds = seconds < 10 ? "0" + seconds : seconds
+
+            display.textContent = minutes + ":" + seconds
+
+            if (--timer < 0) {{
+                display.textContent = "00:00"
+            }}
+        }}, 1000)
+    }}
+
+    window.onload = function () {{
+        var duration = {seconds_left}
+        var display = document.querySelector('#countdown')
+        startTimer(duration, display)
+    }};
+    </script>
+
+    <div style="font-size: 32px; font-weight: bold;">⏳ Temps restant : <span id="countdown">{seconds_left}</span></div>
+    """
+    components.html(js_code, height=60)
+
 # ---------------- QUIZ ----------------
 def run_quiz(questions):
     if "quiz_start_time" not in st.session_state:
@@ -85,7 +115,7 @@ def run_quiz(questions):
 
     if st.session_state.quiz_running:
         st_autorefresh(interval=1000, key="quiz_refresh")
-        st.info(f"⏳ Temps restant : {remaining} sec")
+        render_countdown(remaining)
         st.success(f"🎯 Score en direct : {st.session_state.correct}/{st.session_state.total}")
 
         if st.session_state.last_feedback:
