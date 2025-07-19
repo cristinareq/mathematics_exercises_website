@@ -144,7 +144,7 @@ def run_quiz(questions):
 
 
     if st.session_state.quiz_running:
-        render_countdown(remaining)
+        render_countdown()
         st.success(f"🎯 Score en direct : {st.session_state.correct}/{st.session_state.total}")
 
         if st.session_state.last_feedback:
