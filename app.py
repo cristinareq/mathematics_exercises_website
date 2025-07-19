@@ -109,12 +109,11 @@ def run_quiz(questions):
     elapsed = int(time.time() - st.session_state.quiz_start_time)
     remaining = max(0, 15 - elapsed)
 
-    # Minuteur terminé ou toutes les questions répondues
+    # Quiz finished
     if remaining <= 0 or st.session_state.current_index >= len(questions):
         st.session_state.quiz_running = False
 
     if st.session_state.quiz_running:
-        st_autorefresh(interval=1000, key="quiz_refresh")
         render_countdown(remaining)
         st.success(f"🎯 Score en direct : {st.session_state.correct}/{st.session_state.total}")
 
@@ -131,7 +130,7 @@ def run_quiz(questions):
             )
             submitted = st.form_submit_button("Soumettre")
 
-        # Focus automatique sur l’input
+        # Autofocus input
         components.html("""
         <script>
           window.addEventListener('load', function() {
@@ -155,8 +154,6 @@ def run_quiz(questions):
                     st.session_state.last_feedback = "✅ Correct !"
                 else:
                     st.session_state.last_feedback = f"❌ Faux. La bonne réponse était {correct_answer}"
-
-                    # Enregistrer l'erreur
                     now = datetime.now()
                     supabase.table("errors").insert({
                         "username": st.session_state.user,
@@ -175,7 +172,6 @@ def run_quiz(questions):
             st.rerun()
 
     else:
-        # Fin de quiz
         st.title("🧾 Résultats")
         st.success(f"Score final : {st.session_state.correct}/{st.session_state.total}")
 
