@@ -110,8 +110,22 @@ def run_quiz(questions):
     remaining = max(0, 15 - elapsed)
 
     # Quiz finished
-    if remaining <= 0 or st.session_state.current_index >= len(questions):
+    if remaining <= 0:
+        # Affiche un popup JS avec le score
+        final_score = f"{st.session_state.correct}/{st.session_state.total}"
+        js_popup = f"""
+        <script>
+            alert("⏱ Temps écoulé !\\n\\n🎯 Score final : {final_score}");
+            window.location.reload();
+        </script>
+        """
+        st.components.v1.html(js_popup)
+        
+        # Redirige vers la page principale
         st.session_state.quiz_running = False
+        st.session_state.page = "dashboard"
+        st.rerun()
+
 
     if st.session_state.quiz_running:
         render_countdown(remaining)
@@ -168,7 +182,7 @@ def run_quiz(questions):
                 st.session_state.last_feedback = "⛔ Veuillez entrer un nombre valide."
 
             st.session_state.total += 1
-            st.session_state.current_index += 1
+            st.session_state.current_index = (st.session_state.current_index + 1) % len(questions)
             st.rerun()
 
     else:
