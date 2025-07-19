@@ -77,7 +77,7 @@ def run_quiz(questions, origin="normal"):
 
         a, b = st.session_state.questions[current_index]
 
-        with st.form(key=f"form_{current_index}_{random.randint(0, 1e9)}"):
+        with st.form(key=f"form_{current_index}_{random.randint(0, int(1e9))}"):
             answer = st.text_input(f"Combien fait {a} × {b} ?", key=f"q-{a}-{b}", placeholder="Écris ta réponse ici")
             submitted = st.form_submit_button("Soumettre")
 
