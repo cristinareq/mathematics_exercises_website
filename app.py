@@ -65,53 +65,33 @@ def get_user_stats(username):
 
 # ---------------- QUIZ ----------------
 def run_quiz(questions):
-    st.session_state.quiz_start_time = time.time()
-    st.session_state.correct = 0
-    st.session_state.total = 0
-    st.session_state.quiz_running = True
-    st.session_state.quiz_finished = False
-    st.session_state.questions = questions
-    st.session_state.current_index = 0
+    start_time = time.time()
+    current_index = 0
+    correct = 0
+    total = 0
     st.session_state.score_saved = False
 
-    while st.session_state.quiz_running:
-        elapsed = int(time.time() - st.session_state.quiz_start_time)
-        remaining = max(0, 15 - elapsed)
+    progress_bar = st.progress(0)
 
-        st.info(f"Temps restant : {remaining} sec")
-        st.success(f"Score en direct : {st.session_state.correct}/{st.session_state.total}")
-
-        if remaining <= 0 or st.session_state.current_index >= len(st.session_state.questions):
-            st.session_state.quiz_running = False
-            st.session_state.quiz_finished = True
+    while True:
+        elapsed = time.time() - start_time
+        remaining = 15 - elapsed
+        if remaining <= 0 or current_index >= len(questions):
             break
 
-        a, b = st.session_state.questions[st.session_state.current_index]
+        progress_bar.progress(min(1.0, elapsed / 15))
+        a, b = questions[current_index]
 
-        with st.form(key=f"answer_form_{st.session_state.current_index}_{int(time.time())}"):
+        with st.form(key=f"form_{current_index}_{int(time.time())}"):
             answer = st.text_input(f"Combien fait {a} × {b} ?", key=f"q-{a}-{b}", placeholder="Écris ta réponse ici")
-            submit = st.form_submit_button("Soumettre")
+            submitted = st.form_submit_button("Soumettre")
 
-        components.html("""
-        <script>
-          window.addEventListener('load', function() {
-            setTimeout(function() {
-              const iframe = window.parent.document.querySelector('iframe');
-              if (iframe) {
-                const input = iframe.contentDocument.querySelector('input[data-testid=\"stTextInput\"]');
-                if (input) input.focus();
-              }
-            }, 200);
-          });
-        </script>
-        """, height=0)
-
-        if submit:
+        if submitted:
             try:
                 answer_int = int(answer)
                 if answer_int == a * b:
                     st.success("Correct !")
-                    st.session_state.correct += 1
+                    correct += 1
                 else:
                     st.error(f"Faux. La bonne réponse était {a * b}")
                     now = datetime.now()
@@ -126,32 +106,30 @@ def run_quiz(questions):
                     }).execute()
             except:
                 st.warning("Veuillez entrer un nombre valide.")
-            st.session_state.total += 1
-            st.session_state.current_index += 1
-            time.sleep(1)
+            total += 1
+            current_index += 1
             st.rerun()
 
-    if st.session_state.quiz_finished:
-        st.title("Résultats")
-        st.success(f"Score final : {st.session_state.correct}/{st.session_state.total}")
+    st.title("Résultats")
+    st.success(f"Score final : {correct}/{total}")
 
-        if not st.session_state.score_saved:
-            now = datetime.now()
-            data = {
-                "username": st.session_state.user,
-                "timestamp": now.isoformat(),
-                "readable_date": now.strftime("%d/%m/%Y %H:%M"),
-                "correct": st.session_state.correct,
-                "total": st.session_state.total,
-                "duration": 15,
-                "tables": ",".join(str(t) for t in st.session_state.selected_tables)
-            }
-            supabase.table("scores").insert(data).execute()
-            st.session_state.score_saved = True
+    if not st.session_state.score_saved:
+        now = datetime.now()
+        data = {
+            "username": st.session_state.user,
+            "timestamp": now.isoformat(),
+            "readable_date": now.strftime("%d/%m/%Y %H:%M"),
+            "correct": correct,
+            "total": total,
+            "duration": 15,
+            "tables": ",".join(str(t) for t in st.session_state.selected_tables)
+        }
+        supabase.table("scores").insert(data).execute()
+        st.session_state.score_saved = True
 
-        st.markdown("---")
-        show_user_scores(st.session_state.user)
-        show_user_errors(st.session_state.user)
+    st.markdown("---")
+    show_user_scores(st.session_state.user)
+    show_user_errors(st.session_state.user)
 
 # ---------------- MAIN PAGES ----------------
 def student_page():
@@ -182,9 +160,9 @@ def student_page():
             st.warning("Aucune erreur enregistrée.")
 
     st.markdown("---")
-    st.markdown("### Historique")
+    st.subheader("📊 Historique des entraînements")
     show_user_scores(st.session_state.user)
-    st.markdown("### Tes erreurs précédentes")
+    st.subheader("❌ Tes erreurs précédentes")
     show_user_errors(st.session_state.user)
 
 def teacher_dashboard():
@@ -193,30 +171,21 @@ def teacher_dashboard():
     if result.data:
         df = pd.DataFrame(result.data)
         users = df["username"].unique()
-        for user in users:
-            best, avg, count = get_user_stats(user)
-            if st.button(f"👤 {user} | 🎯 Max: {best} | 📊 Moy: {avg} | 🧮 Exos: {count}"):
-                st.session_state.selected_student = user
+        if "selected_student" not in st.session_state:
+            for i, user in enumerate(users):
+                best, avg, count = get_user_stats(user)
+                if st.button(f"👤 {user} | 🎯 Max: {best} | 📊 Moy: {avg} | 🧮 Exos: {count}", key=f"btn_{i}"):
+                    st.session_state.selected_student = user
+                    st.rerun()
+        else:
+            st.title(f"📈 Statistiques de {st.session_state.selected_student}")
+            st.subheader("📊 Scores des entraînements")
+            show_user_scores(st.session_state.selected_student)
+            st.subheader("❌ Erreurs de l'élève")
+            show_user_errors(st.session_state.selected_student)
+            if st.button("⬅️ Retour"):
+                del st.session_state.selected_student
                 st.rerun()
-
-            
-    if "selected_student" not in st.session_state:
-        # Affichage de la liste des élèves
-        for user in users:
-            best, avg, count = get_user_stats(user)
-            if st.button(f"👤 {user} | 🎯 Max: {best} | 📊 Moy: {avg} | 🧮 Exos: {count}"):
-                st.session_state.selected_student = user
-                st.rerun()
-    else:
-        # Page individuelle
-        st.title(f"📈 Statistiques de {st.session_state.selected_student}")
-        st.subheader("📊 Scores des entraînements")
-        show_user_scores(st.session_state.selected_student)
-        st.subheader("❌ Erreurs de l'élève")
-        show_user_errors(st.session_state.selected_student)
-        if st.button("⬅️ Retour"):
-            del st.session_state.selected_student
-            st.rerun()
 
 # ---------------- MAIN ----------------
 def main():
