@@ -67,33 +67,37 @@ def get_user_stats(username):
 def render_countdown(seconds_left):
     js_code = f"""
     <script>
-    function startTimer(duration, display) {{
-        var timer = duration, minutes, seconds;
-        setInterval(function () {{
-            minutes = parseInt(timer / 60, 10)
-            seconds = parseInt(timer % 60, 10)
+    let duration = {seconds_left};
+    const start = Date.now();
+    const countdown = document.getElementById('countdown');
 
-            minutes = minutes < 10 ? "0" + minutes : minutes
-            seconds = seconds < 10 ? "0" + seconds : seconds
+    function updateTimer() {{
+        const now = Date.now();
+        const elapsed = Math.floor((now - start) / 1000);
+        const remaining = Math.max(0, duration - elapsed);
 
-            display.textContent = minutes + ":" + seconds
+        let minutes = Math.floor(remaining / 60);
+        let seconds = remaining % 60;
 
-            if (--timer < 0) {{
-                display.textContent = "00:00"
-            }}
-        }}, 1000)
+        countdown.textContent = 
+            (minutes < 10 ? '0' : '') + minutes + ':' + 
+            (seconds < 10 ? '0' : '') + seconds;
+
+        if (remaining <= 0) {{
+            clearInterval(interval);
+        }}
     }}
 
-    window.onload = function () {{
-        var duration = {seconds_left}
-        var display = document.querySelector('#countdown')
-        startTimer(duration, display)
-    }};
+    const interval = setInterval(updateTimer, 1000);
+    updateTimer();
     </script>
 
-    <div style="font-size: 32px; font-weight: bold;">⏳ Temps restant : <span id="countdown">{seconds_left}</span></div>
+    <div style="font-size: 32px; font-weight: bold;">
+        ⏳ Temps restant : <span id="countdown">{seconds_left}</span>
+    </div>
     """
     components.html(js_code, height=60)
+
 
 # ---------------- QUIZ ----------------
 def run_quiz(questions):
@@ -111,20 +115,35 @@ def run_quiz(questions):
 
     # Quiz finished
     if remaining <= 0:
-        # Affiche un popup JS avec le score
+        st.session_state.quiz_running = False
         final_score = f"{st.session_state.correct}/{st.session_state.total}"
-        js_popup = f"""
+        js_script = f"""
         <script>
-            alert("⏱ Temps écoulé !\\n\\n🎯 Score final : {final_score}");
-            window.location.reload();
+        alert("⏱ Temps écoulé !\\n\\n🎯 Score final : {final_score}");
+        window.location.href = window.location.href;
         </script>
         """
-        st.components.v1.html(js_popup)
+        st.components.v1.html(js_script)
         
-        # Redirige vers la page principale
-        st.session_state.quiz_running = False
+        # On sauvegarde le score et nettoie
+        if not st.session_state.score_saved:
+            now = datetime.now()
+            data = {
+                "username": st.session_state.user,
+                "timestamp": now.isoformat(),
+                "readable_date": now.strftime("%d/%m/%Y %H:%M"),
+                "correct": st.session_state.correct,
+                "total": st.session_state.total,
+                "duration": 15,
+                "tables": ",".join(str(t) for t in st.session_state.selected_tables)
+            }
+            supabase.table("scores").insert(data).execute()
+            st.session_state.score_saved = True
+    
+        # Redirection logique dans le state
         st.session_state.page = "dashboard"
         st.rerun()
+
 
 
     if st.session_state.quiz_running:
