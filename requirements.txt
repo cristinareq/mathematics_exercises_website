@@ -1,3 +1,4 @@
 pandas 
 streamlit
 supabase
+streamlit-extras
