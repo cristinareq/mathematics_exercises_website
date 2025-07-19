@@ -6,6 +6,7 @@ from datetime import datetime
 from supabase import create_client
 import streamlit.components.v1 as components
 import os
+from streamlit_autorefresh import st_autorefresh
 
 # Supabase setup
 SUPABASE_URL = st.secrets["SUPABASE_URL"]
@@ -83,6 +84,7 @@ def run_quiz(questions):
         st.session_state.quiz_running = False
 
     if st.session_state.quiz_running:
+        st_autorefresh(interval=1000, key="quiz_refresh")
         st.info(f"⏳ Temps restant : {remaining} sec")
         st.success(f"🎯 Score en direct : {st.session_state.correct}/{st.session_state.total}")
 
