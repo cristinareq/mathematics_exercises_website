@@ -6,7 +6,7 @@ from datetime import datetime
 from supabase import create_client
 import streamlit.components.v1 as components
 import os
-from streamlit_autorefresh import st_autorefresh
+from streamlit_extras.st_autorefresh import st_autorefresh
 
 # Supabase setup
 SUPABASE_URL = st.secrets["SUPABASE_URL"]
