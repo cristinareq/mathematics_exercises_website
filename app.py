@@ -67,14 +67,11 @@ def get_user_stats(username):
     last_dt = datetime.fromisoformat(last_date)
     return best_score, avg_score, total_attempts, last_dt
 
-
-
 def now_paris():
     from_zone = pytz.utc
     paris = pytz.timezone("Europe/Paris")
     utc_now = datetime.utcnow().replace(tzinfo=from_zone)
     return utc_now.astimezone(paris)
-
 
 def render_countdown():
     js_code = """
@@ -110,7 +107,7 @@ def render_countdown():
 def reset_quiz_state():
     for key in [
         "quiz_start_time", "correct", "total", "current_index",
-        "quiz_running", "last_feedback", "score_saved", "questions"
+        "quiz_running", "last_feedback", "last_feedback_type", "score_saved", "questions"
     ]:
         st.session_state.pop(key, None)
 
@@ -134,10 +131,7 @@ def run_quiz(questions):
 
     if st.session_state.quiz_running:
         render_countdown()
-        st.success(f"Score en direct : {st.session_state.correct}/{st.session_state.total}")
-
-        if st.session_state.last_feedback:
-            st.markdown(f"### {st.session_state.last_feedback}")
+        st.success(f"🌟 Score en direct : {st.session_state.correct}/{st.session_state.total}")
 
         a, b = questions[st.session_state.current_index]
 
@@ -147,6 +141,15 @@ def run_quiz(questions):
                 key=f"q-{a}-{b}",
                 placeholder="Écris ta réponse ici"
             )
+        
+            # Afficher feedback directement sous le champ réponse
+            if st.session_state.last_feedback_type == "success":
+                st.success(st.session_state.last_feedback)
+            elif st.session_state.last_feedback_type == "error":
+                st.error(st.session_state.last_feedback)
+            elif st.session_state.last_feedback_type == "warning":
+                st.warning(st.session_state.last_feedback)
+        
             submitted = st.form_submit_button("Soumettre")
 
         components.html("""
@@ -169,9 +172,13 @@ def run_quiz(questions):
                 correct_answer = a * b
                 if user_answer == correct_answer:
                     st.session_state.correct += 1
-                    st.session_state.last_feedback = "Correct !"
+                    st.session_state.last_feedback = "✅ Correct !"
+                    st.session_state.last_feedback_type = "success"
+
                 else:
-                    st.session_state.last_feedback = f"Faux. La bonne réponse était {correct_answer}"
+                    st.session_state.last_feedback = f"❌ Faux. La bonne réponse était {correct_answer}"
+                    st.session_state.last_feedback_type = "error"
+
                     now = now_paris()
                     supabase.table("errors").insert({
                         "username": st.session_state.user,
@@ -183,14 +190,14 @@ def run_quiz(questions):
                         "table_value": a
                     }).execute()
             except:
-                st.session_state.last_feedback = "Veuillez entrer un nombre valide."
+                st.session_state.last_feedback = "⛔ Veuillez entrer un nombre valide."
 
             st.session_state.total += 1
             st.session_state.current_index = (st.session_state.current_index + 1) % len(questions)
             st.rerun()
 
     else:
-        st.title("Temps écoulé")
+        st.title("📎 Temps écoulé")
         st.success(f"Score final : {st.session_state.correct}/{st.session_state.total}")
 
         if not st.session_state.score_saved:
@@ -207,7 +214,7 @@ def run_quiz(questions):
             supabase.table("scores").insert(data).execute()
             st.session_state.score_saved = True
 
-        st.markdown("### Récapitulatif des erreurs de cette session")
+        st.markdown("### 📃 Récapitulatif des erreurs de cette session")
         recent_errors = supabase.table("errors").select("*").eq("username", st.session_state.user).order("timestamp", desc=True).limit(10).execute().data
         if recent_errors:
             df = pd.DataFrame(recent_errors)
@@ -216,10 +223,11 @@ def run_quiz(questions):
         else:
             st.write("Pas d'erreurs enregistrées pour cette session.")
 
-        if st.button("⬅ Retour"):
+        if st.button("⬅️ Retour"):
             reset_quiz_state()
             st.session_state.page = "dashboard"
             st.rerun()
+
 
 # ---------------- PAGES ----------------
 def student_dashboard():
