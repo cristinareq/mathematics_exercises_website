@@ -131,7 +131,7 @@ def run_quiz(questions):
 
     if st.session_state.quiz_running:
         render_countdown()
-        st.success(f"🌟 Score en direct : {st.session_state.correct}/{st.session_state.total}")
+        st.success(f"Score en direct : {st.session_state.correct}/{st.session_state.total}")
 
         a, b = questions[st.session_state.current_index]
 
@@ -190,14 +190,14 @@ def run_quiz(questions):
                         "table_value": a
                     }).execute()
             except:
-                st.session_state.last_feedback = "⛔ Veuillez entrer un nombre valide."
+                st.session_state.last_feedback = "Veuillez entrer un nombre valide."
 
             st.session_state.total += 1
             st.session_state.current_index = (st.session_state.current_index + 1) % len(questions)
             st.rerun()
 
     else:
-        st.title("📎 Temps écoulé")
+        st.title("Temps écoulé")
         st.success(f"Score final : {st.session_state.correct}/{st.session_state.total}")
 
         if not st.session_state.score_saved:
@@ -214,16 +214,19 @@ def run_quiz(questions):
             supabase.table("scores").insert(data).execute()
             st.session_state.score_saved = True
 
-        st.markdown("### 📃 Récapitulatif des erreurs de cette session")
-        recent_errors = supabase.table("errors").select("*").eq("username", st.session_state.user).order("timestamp", desc=True).limit(10).execute().data
+        st.markdown("### Tes erreurs durant cette session :")
+        
+        recent_errors = supabase.table("errors").select("*").eq("username", st.session_state.user).order("timestamp", desc=True).limit(20).execute().data
+        
         if recent_errors:
-            df = pd.DataFrame(recent_errors)
-            df = df["question"].astype(str) + " | ❌ " + df["user_answer"].astype(str) + " ✅ " + df["correct_answer"].astype(str)
-            st.write("\n".join(df))
+            errors_df = pd.DataFrame(recent_errors)
+            errors_df = errors_df[["question", "user_answer", "correct_answer"]]
+            errors_df.columns = ["Question", "Ta réponse ❌", "Bonne réponse ✅"]
+            st.table(errors_df)
         else:
-            st.write("Pas d'erreurs enregistrées pour cette session.")
+            st.info("Aucune erreur enregistrée pendant cette session.")
 
-        if st.button("⬅️ Retour"):
+        if st.button("⬅ Retour"):
             reset_quiz_state()
             st.session_state.page = "dashboard"
             st.rerun()
