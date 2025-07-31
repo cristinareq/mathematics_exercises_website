@@ -172,7 +172,7 @@ def run_quiz(questions):
                     st.session_state.last_feedback = "Correct !"
                 else:
                     st.session_state.last_feedback = f"Faux. La bonne réponse était {correct_answer}"
-                    now = now_mx()
+                    now = now_paris()
                     supabase.table("errors").insert({
                         "username": st.session_state.user,
                         "timestamp": now.isoformat(),
@@ -194,7 +194,7 @@ def run_quiz(questions):
         st.success(f"Score final : {st.session_state.correct}/{st.session_state.total}")
 
         if not st.session_state.score_saved:
-            now = now_mx()
+            now = now_paris()
             data = {
                 "username": st.session_state.user,
                 "timestamp": now.isoformat(),
