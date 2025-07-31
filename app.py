@@ -264,20 +264,24 @@ def quiz_page():
 def teacher_dashboard():
     st.title("Tableau de bord - Enseignant")
     result = supabase.table("scores").select("*").order("timestamp", desc=True).execute()
+
     if result.data:
         df = pd.DataFrame(result.data)
         users = df["username"].unique()
+
         for user in users:
-            best, avg, count = get_user_stats(user)
-            if st.button(f"{user} | Max: {best} | Moy: {avg} | Exos: {count}", key=f"btn-{user}"):
+            best, avg, count, last_dt = get_user_stats(user)
+            last_str = last_dt.strftime("%d/%m/%Y %H:%M") if last_dt else "—"
+            if st.button(f"{user} | Max: {best} | Moy: {avg} | Exos: {count} | Dernier : {last_str}", key=f"btn-{user}"):
                 st.session_state.selected_student = user
                 st.rerun()
+
 
     if "selected_student" in st.session_state:
         st.title(f"Statistiques de {st.session_state.selected_student}")
         show_user_scores(st.session_state.selected_student)
         show_user_errors(st.session_state.selected_student)
-        if st.button("⬅️ Retour"):
+        if st.button("⬅ Retour"):
             del st.session_state.selected_student
             st.rerun()
 
