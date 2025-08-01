@@ -103,7 +103,6 @@ def render_countdown():
     """
     components.html(js_code, height=60)
 
-
 def reset_quiz_state():
     for key in [
         "quiz_start_time", "correct", "total", "current_index",
@@ -111,17 +110,18 @@ def reset_quiz_state():
     ]:
         st.session_state.pop(key, None)
 
-
 # ---------------- QUIZ ----------------
 def run_quiz(questions):
+    st.session_state.setdefault("last_feedback", "")
+    st.session_state.setdefault("last_feedback_type", "")
+    st.session_state.setdefault("score_saved", False)
+    st.session_state.setdefault("quiz_running", True)
+
     if "quiz_start_time" not in st.session_state:
         st.session_state.quiz_start_time = time.time()
         st.session_state.correct = 0
         st.session_state.total = 0
         st.session_state.current_index = 0
-        st.session_state.quiz_running = True
-        st.session_state.last_feedback = ""
-        st.session_state.score_saved = False
 
     elapsed = int(time.time() - st.session_state.quiz_start_time)
     remaining = max(0, 15 - elapsed)
@@ -132,7 +132,6 @@ def run_quiz(questions):
     if st.session_state.quiz_running:
         render_countdown()
         st.success(f"Score en direct : {st.session_state.correct}/{st.session_state.total}")
-
         a, b = questions[st.session_state.current_index]
 
         with st.form(key=f"form_{st.session_state.current_index}_{st.session_state.total}"):
@@ -141,15 +140,14 @@ def run_quiz(questions):
                 key=f"q-{a}-{b}",
                 placeholder="Écris ta réponse ici"
             )
-        
-            # Afficher feedback directement sous le champ réponse
+
             if st.session_state.last_feedback_type == "success":
                 st.success(st.session_state.last_feedback)
             elif st.session_state.last_feedback_type == "error":
                 st.error(st.session_state.last_feedback)
             elif st.session_state.last_feedback_type == "warning":
                 st.warning(st.session_state.last_feedback)
-        
+
             submitted = st.form_submit_button("Soumettre")
 
         components.html("""
@@ -174,11 +172,9 @@ def run_quiz(questions):
                     st.session_state.correct += 1
                     st.session_state.last_feedback = "✅ Correct !"
                     st.session_state.last_feedback_type = "success"
-
                 else:
                     st.session_state.last_feedback = f"❌ Faux. La bonne réponse était {correct_answer}"
                     st.session_state.last_feedback_type = "error"
-
                     now = now_paris()
                     supabase.table("errors").insert({
                         "username": st.session_state.user,
@@ -195,7 +191,6 @@ def run_quiz(questions):
             st.session_state.total += 1
             st.session_state.current_index = (st.session_state.current_index + 1) % len(questions)
             st.rerun()
-
     else:
         st.title("Temps écoulé")
         st.success(f"Score final : {st.session_state.correct}/{st.session_state.total}")
@@ -215,9 +210,8 @@ def run_quiz(questions):
             st.session_state.score_saved = True
 
         st.markdown("### Tes erreurs durant cette session :")
-        
         recent_errors = supabase.table("errors").select("*").eq("username", st.session_state.user).order("timestamp", desc=True).limit(20).execute().data
-        
+
         if recent_errors:
             errors_df = pd.DataFrame(recent_errors)
             errors_df = errors_df[["question", "user_answer", "correct_answer"]]
@@ -231,10 +225,10 @@ def run_quiz(questions):
             st.session_state.page = "dashboard"
             st.rerun()
 
-
 # ---------------- PAGES ----------------
 def student_dashboard():
-    st.title(f"Bienvenue, {st.session_state.user}")
+    user_display = st.session_state.user.capitalize()
+    st.title(f"Bienvenue, {user_display}")
     best, avg, count, last_dt = get_user_stats(st.session_state.user)
     last_str = last_dt.strftime("%d/%m/%Y %H:%M") if last_dt else "—"
     st.markdown(f"**Meilleur score :** {best} | **Moyenne :** {avg} | **Entraînements :** {count} | **Dernier :** {last_str}")
@@ -283,16 +277,21 @@ def teacher_dashboard():
         for user in users:
             best, avg, count, last_dt = get_user_stats(user)
             last_str = last_dt.strftime("%d/%m/%Y %H:%M") if last_dt else "—"
-            if st.button(f"{user} | Max: {best} | Moy: {avg} | Exos: {count} | Dernier : {last_str}", key=f"btn-{user}"):
+            label = f"**{user.capitalize()}** | Max: {best} | Moy: {avg} | Exos: {count} | Dernier : {last_str}"
+            if st.button(label, key=f"btn-{user}"):
                 st.session_state.selected_student = user
                 st.rerun()
 
-
     if "selected_student" in st.session_state:
-        st.title(f"Statistiques de {st.session_state.selected_student}")
+        st.title(f"Statistiques de {st.session_state.selected_student.capitalize()}")
+        if st.button("⬅ Retour (haut)"):
+            del st.session_state.selected_student
+            st.rerun()
+
         show_user_scores(st.session_state.selected_student)
         show_user_errors(st.session_state.selected_student)
-        if st.button("⬅ Retour"):
+
+        if st.button("⬅ Retour (bas)"):
             del st.session_state.selected_student
             st.rerun()
 
