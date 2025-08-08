@@ -25,7 +25,7 @@ def login():
             st.session_state.user = username
             st.session_state.is_teacher = result.data[0]["is_teacher"]
             reset_quiz_state()
-            st.experimental_rerun()
+            st.rerun()
         else:
             st.error("Identifiants incorrects.")
 
@@ -156,7 +156,7 @@ def run_quiz():
                         }).execute()
                 st.session_state.total += 1
                 st.session_state.current_index = (st.session_state.current_index + 1) % len(st.session_state.questions)
-                st.experimental_rerun()
+                st.rerun()
             except Exception:
                 st.session_state.last_feedback = "Entrez un nombre valide."
                 st.session_state.last_feedback_type = "error"
@@ -192,7 +192,7 @@ def run_quiz():
 
         if st.button("⬅ Retour"):
             reset_quiz_state()
-            st.experimental_rerun()
+            st.rerun()
 
 # ---------------- STUDENT PAGES ----------------
 def student_training():
@@ -216,7 +216,7 @@ def student_training():
             q, a = generate_question(op, num_type, min_val, max_val)
             questions.append({"question": q, "answer": a})
         st.session_state.questions = questions
-        st.experimental_rerun()
+        st.rerun()
 
 def student_review():
     st.title("Revoir mes erreurs")
@@ -235,7 +235,7 @@ def student_review():
         for e in errors:
             questions.append({"question": e["question"], "answer": Fraction(e["correct_answer"]) if "/" in e["correct_answer"] else float(e["correct_answer"]) , "error_id": e["id"]})
         st.session_state.questions = questions
-        st.experimental_rerun()
+        st.rerun()
 
 def student_homeworks():
     st.title("Devoirs")
@@ -259,7 +259,7 @@ def student_homeworks():
                                           h.get("range_min",1), h.get("range_max",10))
                 questions.append({"question": q, "answer": a})
             st.session_state.questions = questions
-            st.experimental_rerun()
+            st.rerun()
 
 # ---------------- TEACHER PAGES ----------------
 def teacher_create_homework():
@@ -303,7 +303,7 @@ def main():
     st.sidebar.success(f"Connecté: {st.session_state.user}")
     if st.sidebar.button("Se déconnecter"):
         for key in list(st.session_state.keys()): del st.session_state[key]
-        st.experimental_rerun()
+        st.rerun()
 
     if st.session_state.is_teacher:
         section = st.sidebar.selectbox("Section enseignant", ["Stats entraînement","Stats devoirs","Créer devoir"])
