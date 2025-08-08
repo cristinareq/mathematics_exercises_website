@@ -853,7 +853,7 @@ def teacher_create_homework():
               }
           ).execute()
           st.success("Devoir créé avec succès.")
-          st.experimental_rerun()
+          st.rerun()
       except Exception as e:
           st.error(f"Erreur lors de la création du devoir: {e}")
 
