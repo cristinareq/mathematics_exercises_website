@@ -3,12 +3,13 @@ import random
 import time
 import pandas as pd
 from datetime import datetime
+from fractions import Fraction
 from supabase import create_client
 import streamlit.components.v1 as components
 import os
 import pytz
 
-# Supabase setup
+# ---------------- Supabase setup ----------------
 SUPABASE_URL = st.secrets["SUPABASE_URL"]
 SUPABASE_KEY = st.secrets["SUPABASE_KEY"]
 supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
@@ -23,95 +24,70 @@ def login():
         if result.data and result.data[0]["password"] == password:
             st.session_state.user = username
             st.session_state.is_teacher = result.data[0]["is_teacher"]
-            st.session_state.page = "dashboard"
-            st.rerun()
+            reset_quiz_state()
+            st.experimental_rerun()
         else:
             st.error("Identifiants incorrects.")
 
 # ---------------- HELPERS ----------------
-def generate_question(tables):
-    a = random.choice(tables)
-    b = random.randint(0, 10)
-    return a, b
-
-# ---------------- SCORES ----------------
-def show_user_scores(username):
-    result = supabase.table("scores").select("*").eq("username", username).order("timestamp", desc=True).execute()
-    if result.data:
-        st.markdown("### Scores des entraînements")
-        df = pd.DataFrame(result.data)
-        df = df[["readable_date", "correct", "total", "tables"]]
-        df.columns = ["Date", "Bonnes", "Total", "Tables"]
-        df.index += 1
-        st.dataframe(df, use_container_width=True)
-
-def show_user_errors(username):
-    result = supabase.table("errors").select("*").eq("username", username).order("timestamp", desc=True).execute()
-    if result.data:
-        st.markdown("### Erreurs précédentes")
-        df = pd.DataFrame(result.data)
-        df = df[["readable_date", "question", "user_answer", "correct_answer"]]
-        df.columns = ["Date", "Question", "Réponse élève", "Bonne réponse"]
-        df.index += 1
-        st.dataframe(df, use_container_width=True)
-
-def get_user_stats(username):
-    result = supabase.table("scores").select("*").eq("username", username).execute()
-    scores = result.data
-    if not scores:
-        return 0, 0, 0, None
-    total_attempts = len(scores)
-    best_score = max(s["correct"] for s in scores)
-    avg_score = round(sum(s["correct"] for s in scores) / total_attempts, 2)
-    last_date = max(s["timestamp"] for s in scores)
-    last_dt = datetime.fromisoformat(last_date)
-    return best_score, avg_score, total_attempts, last_dt
-
 def now_paris():
     from_zone = pytz.utc
     paris = pytz.timezone("Europe/Paris")
     utc_now = datetime.utcnow().replace(tzinfo=from_zone)
     return utc_now.astimezone(paris)
 
-def render_countdown():
-    js_code = """
-    <div style="font-size: 32px; font-weight: bold;">
-        ⏳ Temps restant : <span id="countdown">00:15</span>
-    </div>
-
-    <script>
-    let duration = 15;
-    const countdown = document.getElementById('countdown');
-
-    function updateTimer() {
-        let minutes = Math.floor(duration / 60);
-        let seconds = duration % 60;
-
-        countdown.textContent =
-            (minutes < 10 ? '0' : '') + minutes + ':' +
-            (seconds < 10 ? '0' : '') + seconds;
-
-        if (duration <= 0) {
-            clearInterval(interval);
-        }
-        duration--;
-    }
-
-    const interval = setInterval(updateTimer, 1000);
-    updateTimer();
-    </script>
-    """
-    components.html(js_code, height=60)
-
+# Reset quiz-related state keys
 def reset_quiz_state():
     for key in [
         "quiz_start_time", "correct", "total", "current_index",
-        "quiz_running", "last_feedback", "last_feedback_type", "score_saved", "questions"
+        "quiz_running", "last_feedback", "last_feedback_type", "score_saved",
+        "questions", "mode", "review_mode"
     ]:
         st.session_state.pop(key, None)
 
-# ---------------- QUIZ ----------------
-def run_quiz(questions):
+# Generate a question based on parameters
+def generate_question(op, num_type, min_val, max_val):
+    # Generate operands
+    if num_type == "Entiers":
+        a = random.randint(min_val, max_val)
+        b = random.randint(min_val, max_val) if op != "Negate" else None
+    elif num_type == "Fractions":
+        # simple fractions between min_val/max_val over random denom
+        denom = random.randint(1, max_val)
+        a = Fraction(random.randint(min_val, max_val), denom)
+        if op != "Negate":
+            denom2 = random.randint(1, max_val)
+            b = Fraction(random.randint(min_val, max_val), denom2)
+        else:
+            b = None
+    elif num_type == "Négatifs":
+        a = random.choice([-1, 1]) * random.randint(min_val, max_val)
+        b = random.choice([-1, 1]) * random.randint(min_val, max_val) if op != "Negate" else None
+    else:
+        # default
+        a, b = 0, 0
+
+    # Compute question and answer
+    if op == "Multiply":
+        question = f"{a} × {b}"
+        answer = a * b
+    elif op == "Sum":
+        question = f"{a} + {b}"
+        answer = a + b
+    elif op == "Divide":
+        question = f"{a} ÷ {b}"
+        # avoid division by zero
+        answer = a / b if b != 0 else None
+    elif op == "Negate":
+        question = f"Négater {a}"
+        answer = -a
+    else:
+        question, answer = "", None
+    return question, answer
+
+# ---------------- QUIZ ENGINE ----------------
+def run_quiz():
+    # Initialize session state for quiz
     st.session_state.setdefault("last_feedback", "")
     st.session_state.setdefault("last_feedback_type", "")
     st.session_state.setdefault("score_saved", False)
@@ -123,78 +99,72 @@ def run_quiz(questions):
         st.session_state.total = 0
         st.session_state.current_index = 0
 
+    # Countdown in seconds (training fixed to 15 sec, homework uses duration param)
+    duration = st.session_state.get("duration_secs", 15)
     elapsed = int(time.time() - st.session_state.quiz_start_time)
-    remaining = max(0, 15 - elapsed)
+    remaining = max(0, duration - elapsed)
 
     if remaining <= 0:
         st.session_state.quiz_running = False
 
     if st.session_state.quiz_running:
-        render_countdown()
+        # Render countdown
+        minutes = remaining // 60
+        seconds = remaining % 60
+        st.markdown(f"⏳ Temps restant : **{minutes:02d}:{seconds:02d}**")
         st.success(f"Score en direct : {st.session_state.correct}/{st.session_state.total}")
-        a, b = questions[st.session_state.current_index]
+        qdata = st.session_state.questions[st.session_state.current_index]
+        question = qdata["question"]
+        correct_answer = qdata["answer"]
+        error_id = qdata.get("error_id")
 
-        with st.form(key=f"form_{st.session_state.current_index}_{st.session_state.total}"):
-            answer = st.text_input(
-                f"Combien fait {a} × {b} ?",
-                key=f"q-{a}-{b}",
-                placeholder="Écris ta réponse ici"
-            )
-
+        with st.form(key=f"form_{st.session_state.current_index}"):
+            user_input = st.text_input(f"{question} = ?", key=f"q-{st.session_state.current_index}")
             if st.session_state.last_feedback_type == "success":
                 st.success(st.session_state.last_feedback)
             elif st.session_state.last_feedback_type == "error":
                 st.error(st.session_state.last_feedback)
-            elif st.session_state.last_feedback_type == "warning":
-                st.warning(st.session_state.last_feedback)
-
             submitted = st.form_submit_button("Soumettre")
-
-        components.html("""
-        <script>
-          window.addEventListener('load', function() {
-            setTimeout(function() {
-              const iframe = window.parent.document.querySelector('iframe');
-              if (iframe) {
-                const input = iframe.contentDocument.querySelector('input[data-testid="stTextInput"]');
-                if (input) input.focus();
-              }
-            }, 200);
-          });
-        </script>
-        """, height=0)
 
         if submitted:
             try:
-                user_answer = int(answer)
-                correct_answer = a * b
+                # Cast to appropriate type
+                if isinstance(correct_answer, Fraction):
+                    user_answer = Fraction(user_input)
+                else:
+                    user_answer = float(user_input) if "." in user_input else int(user_input)
                 if user_answer == correct_answer:
                     st.session_state.correct += 1
                     st.session_state.last_feedback = "✅ Correct !"
                     st.session_state.last_feedback_type = "success"
+                    # If in review mode, remove error
+                    if st.session_state.review_mode and error_id:
+                        supabase.table("errors").delete().eq("id", error_id).execute()
                 else:
                     st.session_state.last_feedback = f"❌ Faux. La bonne réponse était {correct_answer}"
                     st.session_state.last_feedback_type = "error"
-                    now = now_paris()
-                    supabase.table("errors").insert({
-                        "username": st.session_state.user,
-                        "timestamp": now.isoformat(),
-                        "readable_date": now.strftime("%d/%m/%Y %H:%M"),
-                        "question": f"{a} x {b}",
-                        "correct_answer": correct_answer,
-                        "user_answer": user_answer,
-                        "table_value": a
-                    }).execute()
-            except:
-                st.session_state.last_feedback = "Veuillez entrer un nombre valide."
-
-            st.session_state.total += 1
-            st.session_state.current_index = (st.session_state.current_index + 1) % len(questions)
-            st.rerun()
+                    # Log error only in training or homework, not in review
+                    if not st.session_state.review_mode:
+                        now = now_paris()
+                        supabase.table("errors").insert({
+                            "username": st.session_state.user,
+                            "timestamp": now.isoformat(),
+                            "readable_date": now.strftime("%d/%m/%Y %H:%M"),
+                            "question": question,
+                            "correct_answer": str(correct_answer),
+                            "user_answer": str(user_answer)
+                        }).execute()
+                st.session_state.total += 1
+                st.session_state.current_index = (st.session_state.current_index + 1) % len(st.session_state.questions)
+                st.experimental_rerun()
+            except Exception:
+                st.session_state.last_feedback = "Entrez un nombre valide."
+                st.session_state.last_feedback_type = "error"
     else:
-        st.title("Temps écoulé")
+        # Quiz finished
+        st.title("Fin du temps")
         st.success(f"Score final : {st.session_state.correct}/{st.session_state.total}")
-
+        # Save score
         if not st.session_state.score_saved:
             now = now_paris()
             data = {
@@ -203,116 +173,157 @@ def run_quiz(questions):
                 "readable_date": now.strftime("%d/%m/%Y %H:%M"),
                 "correct": st.session_state.correct,
                 "total": st.session_state.total,
-                "duration": 15,
-                "tables": ",".join(str(t) for t in st.session_state.selected_tables)
+                "duration": duration,
+                "mode": st.session_state.mode
             }
             supabase.table("scores").insert(data).execute()
             st.session_state.score_saved = True
 
-        st.markdown("### Tes erreurs durant cette session :")
-        recent_errors = supabase.table("errors").select("*").eq("username", st.session_state.user).order("timestamp", desc=True).limit(20).execute().data
-
-        if recent_errors:
-            errors_df = pd.DataFrame(recent_errors)
-            errors_df = errors_df[["question", "user_answer", "correct_answer"]]
-            errors_df.columns = ["Question", "Ta réponse ❌", "Bonne réponse ✅"]
-            st.table(errors_df)
+        # Display recent errors in this session
+        st.markdown("### Vos erreurs pendant cette session :")
+        errors = supabase.table("errors").select("*").eq("username", st.session_state.user).order("timestamp", desc=True).limit(20).execute().data
+        if errors:
+            df = pd.DataFrame(errors)
+            df = df[["question", "user_answer", "correct_answer"]]
+            df.columns = ["Question", "Votre réponse", "Bonne réponse"]
+            st.table(df)
         else:
-            st.info("Aucune erreur enregistrée pendant cette session.")
+            st.info("Aucune erreur enregistrée.")
 
         if st.button("⬅ Retour"):
             reset_quiz_state()
-            st.session_state.page = "dashboard"
-            st.rerun()
+            st.experimental_rerun()
 
-# ---------------- PAGES ----------------
-def student_dashboard():
-    user_display = st.session_state.user.capitalize()
-    st.title(f"Bienvenue, {user_display}")
-    best, avg, count, last_dt = get_user_stats(st.session_state.user)
-    last_str = last_dt.strftime("%d/%m/%Y %H:%M") if last_dt else "—"
-    st.markdown(f"**Meilleur score :** {best} | **Moyenne :** {avg} | **Entraînements :** {count} | **Dernier :** {last_str}")
-
-    selected_tables = st.multiselect("Choisis les tables à réviser :", list(range(2, 11)), default=[2, 3])
-    if selected_tables:
-        rows = [[f"{t}×{i}={t*i}" for i in range(1, 11)] for t in selected_tables]
-        df = pd.DataFrame(rows, index=[f"Table de {t}" for t in selected_tables]).transpose()
-        df.index += 1
-        st.dataframe(df)
-
+# ---------------- STUDENT PAGES ----------------
+def student_training():
+    st.title("Entraînement libre")
+    # Parameters
+    op = st.selectbox("Type d'opération :", ["Multiply", "Sum", "Divide", "Negate"])
+    num_type = st.selectbox("Type de nombres :", ["Entiers", "Fractions", "Négatifs"])
+    min_val, max_val = 1, 10
+    if num_type in ["Entiers", "Négatifs"]:
+        min_val = st.number_input("Valeur min :", value=1, step=1)
+        max_val = st.number_input("Valeur max :", value=10, step=1)
+    # Start
     if st.button("Commencer l'entraînement"):
         reset_quiz_state()
-        questions = [generate_question(selected_tables) for _ in range(30)]
-        st.session_state.selected_tables = selected_tables
-        st.session_state.page = "quiz"
+        st.session_state.mode = "training"
+        st.session_state.review_mode = False
+        st.session_state.duration_secs = 15  # fixed training duration
+        # Generate questions
+        questions = []
+        for _ in range(30):
+            q, a = generate_question(op, num_type, min_val, max_val)
+            questions.append({"question": q, "answer": a})
         st.session_state.questions = questions
-        st.rerun()
+        st.experimental_rerun()
 
-    if st.button("Réviser mes erreurs"):
-        errors = supabase.table("errors").select("*").eq("username", st.session_state.user).execute().data
-        if errors:
+def student_review():
+    st.title("Revoir mes erreurs")
+    # Fetch errors
+    result = supabase.table("errors").select("*","id").eq("username", st.session_state.user).execute()
+    errors = result.data
+    if not errors:
+        st.warning("Aucune erreur à réviser.")
+        return
+    if st.button("Commencer la révision" ):
+        reset_quiz_state()
+        st.session_state.mode = "review"
+        st.session_state.review_mode = True
+        st.session_state.duration_secs = 15
+        questions = []
+        for e in errors:
+            questions.append({"question": e["question"], "answer": Fraction(e["correct_answer"]) if "/" in e["correct_answer"] else float(e["correct_answer"]) , "error_id": e["id"]})
+        st.session_state.questions = questions
+        st.experimental_rerun()
+
+def student_homeworks():
+    st.title("Devoirs")
+    # List available homeworks
+    hw = supabase.table("homeworks").select("*").order("created_at", desc=True).execute().data
+    if not hw:
+        st.info("Aucun devoir disponible.")
+        return
+    for h in hw:
+        created = datetime.fromisoformat(h["created_at"]).strftime("%d/%m/%Y %H:%M")
+        label = f"{h['name']} - Ops: {h['operation']} | Nombres: {h['number_type']} | Durée: {h['duration']}s | Créé le {created}"
+        if st.button(f"Faire le devoir: {label}"):
             reset_quiz_state()
-            questions = [(int(e["question"].split(" x ")[0]), int(e["question"].split(" x ")[1])) for e in errors]
-            st.session_state.selected_tables = list(set(q[0] for q in questions))
-            st.session_state.page = "quiz"
+            st.session_state.mode = "homework"
+            st.session_state.review_mode = False
+            st.session_state.duration_secs = h["duration"]
+            # Generate questions based on hw settings
+            questions = []
+            for _ in range(30):  # questions count arbitrary, quiz ends on time
+                q, a = generate_question(h["operation"], h["number_type"],
+                                          h.get("range_min",1), h.get("range_max",10))
+                questions.append({"question": q, "answer": a})
             st.session_state.questions = questions
-            st.rerun()
-        else:
-            st.warning("Aucune erreur enregistrée.")
+            st.experimental_rerun()
 
-    show_user_scores(st.session_state.user)
-    show_user_errors(st.session_state.user)
+# ---------------- TEACHER PAGES ----------------
+def teacher_create_homework():
+    st.title("Créer un devoir")
+    name = st.text_input("Nom du devoir")
+    op = st.selectbox("Type d'opération :", ["Multiply", "Sum", "Divide", "Negate"])
+    num_type = st.selectbox("Type de nombres :", ["Entiers", "Fractions", "Négatifs"])
+    range_min, range_max = 1, 10
+    if num_type in ["Entiers", "Négatifs"]:
+        range_min = st.number_input("Valeur min :", value=1, step=1, key="min_hw")
+        range_max = st.number_input("Valeur max :", value=10, step=1, key="max_hw")
+    duration = st.number_input("Durée (secondes) :", value=60, step=10)
+    if st.button("Créer le devoir"):
+        now = now_paris()
+        supabase.table("homeworks").insert({
+            "name": name,
+            "operation": op,
+            "number_type": num_type,
+            "range_min": range_min,
+            "range_max": range_max,
+            "duration": int(duration),
+            "created_at": now.isoformat()
+        }).execute()
+        st.success("Devoir créé !")
 
-def quiz_page():
-    run_quiz(st.session_state.questions)
-
-def teacher_dashboard():
-    st.title("Tableau de bord - Enseignant")
-    result = supabase.table("scores").select("*").order("timestamp", desc=True).execute()
-
-    if result.data:
-        df = pd.DataFrame(result.data)
-        users = df["username"].unique()
-
-        for user in users:
-            best, avg, count, last_dt = get_user_stats(user)
-            last_str = last_dt.strftime("%d/%m/%Y %H:%M") if last_dt else "—"
-            label = f"**{user.capitalize()}** | Max: {best} | Moy: {avg} | Exos: {count} | Dernier : {last_str}"
-            if st.button(label, key=f"btn-{user}"):
-                st.session_state.selected_student = user
-                st.rerun()
-
-    if "selected_student" in st.session_state:
-        st.title(f"Statistiques de {st.session_state.selected_student.capitalize()}")
-        if st.button("⬅ Retour (haut)"):
-            del st.session_state.selected_student
-            st.rerun()
-
-        show_user_scores(st.session_state.selected_student)
-        show_user_errors(st.session_state.selected_student)
-
-        if st.button("⬅ Retour (bas)"):
-            del st.session_state.selected_student
-            st.rerun()
+def teacher_stats(mode='training'):
+    st.title(f"Statistiques {'entraînement' if mode=='training' else 'devoirs'}")
+    data = supabase.table("scores").select("*").eq("mode", mode).execute().data
+    if not data:
+        st.info("Aucune donnée.")
+        return
+    df = pd.DataFrame(data)
+    st.dataframe(df)
 
 # ---------------- MAIN ----------------
 def main():
     if "user" not in st.session_state:
         login()
-    else:
-        st.sidebar.success(f"Connecté en tant que {st.session_state.user}")
-        if st.sidebar.button("Se déconnecter"):
-            for key in list(st.session_state.keys()):
-                del st.session_state[key]
-            st.rerun()
+        return
+    # Sidebar and logout
+    st.sidebar.success(f"Connecté: {st.session_state.user}")
+    if st.sidebar.button("Se déconnecter"):
+        for key in list(st.session_state.keys()): del st.session_state[key]
+        st.experimental_rerun()
 
-        if st.session_state.get("is_teacher", False):
-            teacher_dashboard()
+    if st.session_state.is_teacher:
+        section = st.sidebar.selectbox("Section enseignant", ["Stats entraînement","Stats devoirs","Créer devoir"])
+        if section == "Stats entraînement":
+            teacher_stats('training')
+        elif section == "Stats devoirs":
+            teacher_stats('homework')
         else:
-            if st.session_state.get("page") == "quiz":
-                quiz_page()
-            else:
-                student_dashboard()
+            teacher_create_homework()
+    else:
+        section = st.sidebar.selectbox("Section", ["Entraînement libre","Revoir erreurs","Devoirs"])
+        if section == "Entraînement libre":
+            student_training()
+        elif section == "Revoir erreurs":
+            student_review()
+        else:
+            student_homeworks()
+    # If a quiz is active
+    if "questions" in st.session_state:
+        run_quiz()
 
 if __name__ == "__main__":
     main()
