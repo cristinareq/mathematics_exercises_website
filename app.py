@@ -174,7 +174,7 @@ def run_quiz():
                 "correct": st.session_state.correct,
                 "total": st.session_state.total,
                 "duration": duration,
-                "mode": st.session_state.mode
+                "quiz_mode": st.session_state.mode
             }
             supabase.table("scores").insert(data).execute()
             st.session_state.score_saved = True
@@ -287,13 +287,15 @@ def teacher_create_homework():
 
 def teacher_stats(mode='training'):
     st.title(f"Statistiques {'entraînement' if mode=='training' else 'devoirs'}")
-    data = supabase.table("scores").select("*").eq("mode", mode).execute().data
+    # Récupère toutes les entrées puis filtre côté Python pour éviter les collisions SQL
+    result = supabase.table("scores").select("*").execute().data
+    data = [row for row in result if row.get("quiz_mode") == mode]
     if not data:
         st.info("Aucune donnée.")
         return
     df = pd.DataFrame(data)
+    # Affiche un tableau avec colonnes pertinentes
     st.dataframe(df)
-
 # ---------------- MAIN ----------------
 def main():
     if "user" not in st.session_state:
