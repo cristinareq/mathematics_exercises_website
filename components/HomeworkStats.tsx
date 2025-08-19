@@ -14,7 +14,7 @@ export default function HomeworkStats({ user, supabase }: HomeworkStatsProps) {
   const [selectedClass, setSelectedClass] = useState<number | null>(null)
   const [homeworks, setHomeworks] = useState<any[]>([])
   const [submissions, setSubmissions] = useState<any[]>([])
-  const [classMembers, setClassMembers] = useState<string[]>([])
+  const [classMembers, setClassMembers] = useState<any[]>([]) // Changed to store full user info
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
@@ -64,9 +64,22 @@ export default function HomeworkStats({ user, supabase }: HomeworkStatsProps) {
 
   const fetchClassMembers = async (classId: number) => {
     try {
-      const { data } = await supabase.from("class_members").select("username").eq("class_id", classId)
+      // Join with users table to get display names
+      const { data } = await supabase
+        .from("class_members")
+        .select(`
+          username,
+          users!inner(username, display_name)
+        `)
+        .eq("class_id", classId)
 
-      setClassMembers(data?.map((m) => m.username) || [])
+      const membersWithNames =
+        data?.map((member) => ({
+          username: member.username,
+          display_name: member.users.display_name || member.username,
+        })) || []
+
+      setClassMembers(membersWithNames)
     } catch (error) {
       console.error("Error fetching class members:", error)
     }
@@ -79,11 +92,14 @@ export default function HomeworkStats({ user, supabase }: HomeworkStatsProps) {
       const homeworkIds = homeworks.map((h) => h.id)
       if (homeworkIds.length === 0) return
 
+      const memberUsernames = classMembers.map((m) => m.username)
+      if (memberUsernames.length === 0) return
+
       const { data } = await supabase
         .from("homework_submissions")
         .select("*")
         .in("homework_id", homeworkIds)
-        .in("username", classMembers)
+        .in("username", memberUsernames)
         .order("timestamp", { ascending: false })
 
       setSubmissions(data || [])
@@ -91,6 +107,13 @@ export default function HomeworkStats({ user, supabase }: HomeworkStatsProps) {
       console.error("Error fetching submissions:", error)
     }
   }
+
+  // Update submissions fetch when classMembers changes
+  useEffect(() => {
+    if (classMembers.length > 0) {
+      fetchSubmissions()
+    }
+  }, [classMembers, homeworks])
 
   if (loading) {
     return (
@@ -119,7 +142,7 @@ export default function HomeworkStats({ user, supabase }: HomeworkStatsProps) {
                   <div key={homework.id} className="border-b pb-4">
                     <h3 className="text-lg font-semibold mb-2">{homework.name}</h3>
                     <div className="text-sm text-gray-600 mb-2">
-                      {homework.operation} • {homework.number_type_a || homework.number_type} •{homework.range_min}-
+                      {homework.operation} • {homework.number_type_a || homework.number_type} • {homework.range_min}-
                       {homework.range_max} • {homework.duration}s
                     </div>
                     <p className="text-sm text-gray-600 mb-2">Tentatives totales: {hwSubmissions.length}</p>
@@ -205,7 +228,7 @@ export default function HomeworkStats({ user, supabase }: HomeworkStatsProps) {
                 <div key={homework.id} className="border-b pb-6">
                   <h3 className="text-lg font-semibold mb-2">{homework.name}</h3>
                   <div className="text-sm text-gray-600 mb-2">
-                    {homework.operation} • {homework.number_type_a || homework.number_type} •{homework.range_min}-
+                    {homework.operation} • {homework.number_type_a || homework.number_type} • {homework.range_min}-
                     {homework.range_max} • {homework.duration}s
                   </div>
                   <p className="text-sm text-gray-600 mb-4">
@@ -223,13 +246,16 @@ export default function HomeworkStats({ user, supabase }: HomeworkStatsProps) {
                         </tr>
                       </thead>
                       <tbody>
-                        {classMembers.map((student) => {
-                          const studentSubmissions = hwSubmissions.filter((s) => s.username === student)
+                        {classMembers.map((member) => {
+                          const studentSubmissions = hwSubmissions.filter((s) => s.username === member.username)
                           const lastSubmission = studentSubmissions[0] // Most recent
 
                           return (
-                            <tr key={student}>
-                              <td className="border border-gray-300 px-4 py-2">{student}</td>
+                            <tr key={member.username}>
+                              <td className="border border-gray-300 px-4 py-2 font-medium">
+                                {member.display_name}
+                                <div className="text-xs text-gray-500">({member.username})</div>
+                              </td>
                               <td className="border border-gray-300 px-4 py-2">{studentSubmissions.length}</td>
                               <td className="border border-gray-300 px-4 py-2">
                                 {lastSubmission ? (
