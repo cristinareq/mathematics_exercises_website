@@ -1,4 +1,0 @@
-pandas 
-streamlit
-supabase
-pytz
