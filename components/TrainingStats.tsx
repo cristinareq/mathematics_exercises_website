@@ -11,6 +11,7 @@ interface TrainingStatsProps {
 
 export default function TrainingStats({ user, supabase }: TrainingStatsProps) {
   const [stats, setStats] = useState<{ [key: string]: any[] }>({})
+  const [userDisplayNames, setUserDisplayNames] = useState<{ [key: string]: string }>({})
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
@@ -26,14 +27,31 @@ export default function TrainingStats({ user, supabase }: TrainingStatsProps) {
         .order("timestamp", { ascending: false })
 
       const statsByUser: { [key: string]: any[] } = {}
+      const usernames = new Set<string>()
+
       data?.forEach((score) => {
         if (!statsByUser[score.username]) {
           statsByUser[score.username] = []
         }
         statsByUser[score.username].push(score)
+        usernames.add(score.username)
       })
 
       setStats(statsByUser)
+
+      // Fetch display names for all users
+      if (usernames.size > 0) {
+        const { data: usersData } = await supabase
+          .from("users")
+          .select("username, display_name")
+          .in("username", Array.from(usernames))
+
+        const displayNamesMap: { [key: string]: string } = {}
+        usersData?.forEach((user) => {
+          displayNamesMap[user.username] = user.display_name || user.username
+        })
+        setUserDisplayNames(displayNamesMap)
+      }
     } catch (error) {
       console.error("Error fetching training stats:", error)
     } finally {
@@ -64,6 +82,7 @@ export default function TrainingStats({ user, supabase }: TrainingStatsProps) {
         <div className="space-y-6">
           {usernames.map((username) => {
             const userStats = stats[username]
+            const displayName = userDisplayNames[username] || username
             const maxScore = Math.max(...userStats.map((s) => s.correct))
             const avgScore = (userStats.reduce((sum, s) => sum + s.correct, 0) / userStats.length).toFixed(1)
             const sessionCount = userStats.length
@@ -73,8 +92,9 @@ export default function TrainingStats({ user, supabase }: TrainingStatsProps) {
               <div key={username} className="bg-white p-6 rounded-lg shadow">
                 <div className="flex justify-between items-start mb-4">
                   <div>
-                    <h3 className="text-xl font-semibold text-gray-900 capitalize">{username}</h3>
-                    <div className="flex space-x-6 text-sm text-gray-600 mt-2">
+                    <h3 className="text-xl font-semibold text-gray-900">{displayName}</h3>
+                    <div className="text-sm text-gray-500 mb-2">({username})</div>
+                    <div className="flex space-x-6 text-sm text-gray-600">
                       <span>
                         Max: <span className="font-medium text-green-600">{maxScore}</span>
                       </span>
