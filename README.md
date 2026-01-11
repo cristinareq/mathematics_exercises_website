@@ -2,7 +2,7 @@
 
 Une application web moderne pour l'entraînement aux mathématiques avec gestion des classes, devoirs et statistiques.
 
-## 🚀 Fonctionnalités
+## Fonctionnalités
 
 - **Entraînement libre** : Sessions personnalisables avec différents types d'opérations
 - **Révision d'erreurs** : Système intelligent de correction des erreurs
@@ -11,14 +11,14 @@ Une application web moderne pour l'entraînement aux mathématiques avec gestion
 - **Support des fractions** : Calculs avec entiers, fractions et nombres négatifs
 - **Interface responsive** : Fonctionne sur tous les appareils
 
-## 🛠️ Technologies
+## Technologies
 
 - **Frontend** : Next.js 14, React, TypeScript, Tailwind CSS
 - **Backend** : Supabase (PostgreSQL + Auth + RLS)
 - **Déploiement** : Vercel
 - **UI Components** : Radix UI, Shadcn/ui
 
-## 📦 Installation
+## Installation
 
 1. **Cloner le repository**
    \`\`\`bash
@@ -47,7 +47,7 @@ Une application web moderne pour l'entraînement aux mathématiques avec gestion
    npm run dev
    \`\`\`
 
-## 🗄️ Configuration de la Base de Données
+## Configuration de la Base de Données
 
 1. **Créer un projet Supabase** sur [supabase.com](https://supabase.com)
 
@@ -61,7 +61,7 @@ Une application web moderne pour l'entraînement aux mathématiques avec gestion
    NEXT_PUBLIC_SUPABASE_ANON_KEY=your-anon-key
    \`\`\`
 
-## 👥 Comptes de Démonstration
+## Comptes de Démonstration
 
 Après avoir exécuté le script de démonstration :
 
@@ -77,7 +77,7 @@ Après avoir exécuté le script de démonstration :
 - `eric` / `demo123`
 - `franck` / `demo123`
 
-## 🚀 Déploiement
+## Déploiement
 
 ### Déploiement automatique avec Vercel
 
@@ -96,7 +96,7 @@ Après avoir exécuté le script de démonstration :
    NEXT_PUBLIC_SUPABASE_ANON_KEY=your-anon-key
    \`\`\`
 
-## 📖 Utilisation
+## Utilisation
 
 ### Pour les Élèves
 1. Se connecter avec ses identifiants
@@ -112,7 +112,7 @@ Après avoir exécuté le script de démonstration :
 4. Consulter les statistiques de performance
 5. Suivre les progrès des élèves
 
-## 🏗️ Architecture
+## Architecture
 
 \`\`\`
 ├── app/                 # Pages Next.js (App Router)
@@ -122,7 +122,7 @@ Après avoir exécuté le script de démonstration :
 └── public/              # Assets statiques
 \`\`\`
 
-## 🤝 Contribution
+## Contribution
 
 1. Fork le projet
 2. Créer une branche feature (`git checkout -b feature/AmazingFeature`)
@@ -130,17 +130,17 @@ Après avoir exécuté le script de démonstration :
 4. Push vers la branche (`git push origin feature/AmazingFeature`)
 5. Ouvrir une Pull Request
 
-## 📄 Licence
+## Licence
 
 Ce projet est sous licence MIT. Voir le fichier `LICENSE` pour plus de détails.
 
-## 📞 Support
+## Support
 
 Pour toute question ou problème :
 - Ouvrir une issue sur GitHub
 - Contacter l'équipe de développement
 
-## 🔄 Changelog
+## Changelog
 
 ### v1.0.0
 - Version initiale avec toutes les fonctionnalités de base
